@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ぷよクエ共通テスト</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1 id="mainTitle">ぷよクエ共通テスト</h1>
+
+    <div class="progressBox">
+        <div id="sectionTitle"></div>
+        <div id="progressText"></div>
+
+        <div class="progressBar">
+            <div id="progressFill"></div>
+        </div>
+    </div>
+
+    <div id="questionArea"></div>
+
+    <div style="margin-top:30px; display:flex; gap:10px;">
+        <button id="prevBtn" onclick="prevQuestion()">前へ</button>
+        <button id="nextBtn" onclick="nextQuestion()">次へ</button>
+    </div>
+
+</div>
+
+<script>
+
+const API_URL =
+"https://script.google.com/macros/s/AKfycbyDLn3UccEHfvov-5wQ8X0IFgjZLPO7iHwniEB0zg0yH6ahLsRrZ1oTYduA8yF6dWIL/exec";
+
+let questions = [];
+let currentIndex = 0;
+
+const categoryMap = {
+    "初級": "大問1　初級",
+    "中級": "大問2　中級",
+    "上級": "大問3　上級",
+    "超上級": "大問4　超上級",
+    "管理者問題①": "大問5　管理者問題①",
+    "管理者問題②": "大問6　管理者問題②"
+};
+
+async function loadQuestions(){
+
+    const round = localStorage.getItem("round");
+
+    document.getElementById("mainTitle").innerText =
+        `第${round}回 ぷよクエ共通テスト`;
+
+    try{
+
+        const res = await fetch(
+            API_URL + "?action=getTest&round=" + round
+        );
+
+        questions = await res.json();
+
+        localStorage.setItem(
+            "questions",
+            JSON.stringify(questions)
+        );
+
+        if(questions.length === 0){
+
+            document.getElementById("sectionTitle").innerText =
+                "問題がありません";
+
+            document.getElementById("questionArea").innerHTML =
+                "<p>この回の問題がまだ登録されていません。</p>";
+
+            document.getElementById("prevBtn").style.display = "none";
+            document.getElementById("nextBtn").style.display = "none";
+
+            return;
+        }
+
+        showQuestion();
+
+    }catch(error){
+
+        console.error(error);
+
+        document.getElementById("sectionTitle").innerText =
+            "読み込みエラー";
+
+        document.getElementById("questionArea").innerHTML =
+            "<p>問題の取得に失敗しました。</p>";
+    }
+}
+
+function showQuestion(){
+
+    const q = questions[currentIndex];
+
+    const category =
+        q.category || "未分類";
+
+    document.getElementById("sectionTitle").innerText =
+        categoryMap[category] || category;
+
+    document.getElementById("progressText").innerText =
+        `問 ${currentIndex + 1} / ${questions.length}`;
+
+    document.getElementById("progressFill").style.width =
+        `${((currentIndex + 1) / questions.length) * 100}%`;
+
+    document.getElementById("questionArea").innerHTML =
+    `
+    <div class="info">
+        <p><strong>問題</strong></p>
+
+        <p>${escapeHtml(q.question)}</p>
+
+        <label class="choiceLabel">
+            <input type="radio" name="answer" value="1">
+            ① ${escapeHtml(q.choice1)}
+        </label>
+
+        <label class="choiceLabel">
+            <input type="radio" name="answer" value="2">
+            ② ${escapeHtml(q.choice2)}
+        </label>
+
+        <label class="choiceLabel">
+            <input type="radio" name="answer" value="3">
+            ③ ${escapeHtml(q.choice3)}
+        </label>
+
+        <label class="choiceLabel">
+            <input type="radio" name="answer" value="4">
+            ④ ${escapeHtml(q.choice4)}
+        </label>
+    </div>
+    `;
+
+    const savedAnswer =
+        localStorage.getItem(`q${currentIndex + 1}`);
+
+    if(savedAnswer){
+
+        const radio = document.querySelector(
+            `input[name="answer"][value="${savedAnswer}"]`
+        );
+
+        if(radio){
+            radio.checked = true;
+        }
+    }
+
+    document.getElementById("prevBtn").style.display =
+        currentIndex === 0 ? "none" : "block";
+
+    document.getElementById("nextBtn").innerText =
+        currentIndex === questions.length - 1
+        ? "結果へ"
+        : "次へ";
+
+    window.scrollTo(0, 0);
+}
+
+function saveCurrentAnswer(){
+
+    const selected =
+        document.querySelector('input[name="answer"]:checked');
+
+    if(!selected){
+        return false;
+    }
+
+    localStorage.setItem(
+        `q${currentIndex + 1}`,
+        selected.value
+    );
+
+    return true;
+}
+
+function nextQuestion(){
+
+    const saved = saveCurrentAnswer();
+
+    if(!saved){
+        alert("回答を選択してください");
+        return;
+    }
+
+    if(currentIndex >= questions.length - 1){
+        window.location.href = "result.html";
+        return;
+    }
+
+    currentIndex++;
+    showQuestion();
+}
+
+function prevQuestion(){
+
+    saveCurrentAnswer();
+
+    if(currentIndex > 0){
+        currentIndex--;
+        showQuestion();
+    }
+}
+
+function escapeHtml(text){
+
+    return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+loadQuestions();
+
+</script>
+
+</body>
+</html>

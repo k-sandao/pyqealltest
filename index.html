@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ぷよクエ共通テスト</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <div style="text-align:right; margin-bottom:15px;">
+        <button onclick="location.href='post.html'">
+            問題投稿はこちら
+        </button>
+    </div>
+
+    <h1>ぷよクエ共通テスト</h1>
+
+    <p class="subtitle">
+        ぷよぷよ!!クエストに関する知識を問う非公式テスト
+    </p>
+
+    <div class="info">
+        受験する回を選択してください。<br>
+        採点は最後にまとめて行われます。
+    </div>
+
+    <label>受験回</label>
+    <select id="round">
+        <option value="">読み込み中...</option>
+    </select>
+
+    <label>ユーザーランク（任意）</label>
+    <input
+        type="number"
+        id="rank"
+        min="1"
+        max="4000"
+        placeholder="例：1200"
+    >
+
+    <label>ニックネーム（必須）</label>
+    <input
+        type="text"
+        id="nickname"
+        placeholder="ニックネームを入力"
+    >
+
+    <button onclick="startTest()">
+        注意事項へ進む
+    </button>
+
+    <div id="error" class="error"></div>
+
+</div>
+
+<script>
+
+const API_URL =
+"https://script.google.com/macros/s/AKfycbyDLn3UccEHfvov-5wQ8X0IFgjZLPO7iHwniEB0zg0yH6ahLsRrZ1oTYduA8yF6dWIL/exec";
+
+async function loadRounds(){
+
+    const select = document.getElementById("round");
+
+    try{
+
+        const res = await fetch(API_URL + "?action=getRounds");
+        const text = await res.text();
+
+        console.log("getRounds:", text);
+
+        const rounds = JSON.parse(text);
+
+        select.innerHTML = "";
+
+        if(!Array.isArray(rounds) || rounds.length === 0){
+
+            select.innerHTML =
+                `<option value="">受験可能な回がありません</option>`;
+
+            return;
+        }
+
+        rounds
+            .sort((a,b) => Number(b) - Number(a))
+            .forEach(round => {
+
+                const option = document.createElement("option");
+                option.value = String(round);
+                option.textContent = `第${round}回`;
+
+                select.appendChild(option);
+            });
+
+    }catch(error){
+
+        console.error("受験回取得エラー:", error);
+
+        select.innerHTML =
+            `<option value="">読み込みエラー</option>`;
+
+        document.getElementById("error").innerText =
+            "受験回の取得に失敗しました。";
+    }
+}
+
+function startTest(){
+
+    const round = document.getElementById("round").value;
+    const nickname = document.getElementById("nickname").value.trim();
+    const rank = document.getElementById("rank").value;
+
+    if(round === ""){
+        document.getElementById("error").innerText =
+            "受験回を選択してください";
+        return;
+    }
+
+    if(nickname === ""){
+        document.getElementById("error").innerText =
+            "ニックネームを入力してください";
+        return;
+    }
+
+    if(rank !== ""){
+        const rankNum = Number(rank);
+
+        if(rankNum < 1 || rankNum > 4000){
+            document.getElementById("error").innerText =
+                "ユーザーランクは1～4000で入力してください";
+            return;
+        }
+    }
+
+    localStorage.setItem("round", round);
+    localStorage.setItem("nickname", nickname);
+    localStorage.setItem("rank", rank);
+    localStorage.setItem("testSessionId", Date.now().toString());
+
+    for(let i = 1; i <= 300; i++){
+        localStorage.removeItem(`q${i}`);
+    }
+
+    localStorage.removeItem("questions");
+
+    window.location.href = "attention.html";
+}
+
+loadRounds();
+
+</script>
+
+</body>
+</html>

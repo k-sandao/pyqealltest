@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ランキング</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+<div class="container">
+
+<h1 id="title">ランキング</h1>
+
+<div class="info">
+    <p><strong>受験者数</strong><br><span id="count">読み込み中...</span></p>
+    <p><strong>平均点</strong><br><span id="average">読み込み中...</span></p>
+    <p><strong>あなたの順位</strong><br><span id="myRank">読み込み中...</span></p>
+</div>
+
+<div class="info">
+    <h2>ランキング</h2>
+    <div id="rankingArea">読み込み中...</div>
+</div>
+
+<button onclick="location.href='result.html'">
+    結果に戻る
+</button>
+
+<button onclick="location.href='index.html'" style="background:#777;">
+    最初に戻る
+</button>
+
+</div>
+
+<script>
+const API_URL =
+"https://script.google.com/macros/s/AKfycbyDLn3UccEHfvov-5wQ8X0IFgjZLPO7iHwniEB0zg0yH6ahLsRrZ1oTYduA8yF6dWIL/exec";
+
+const round = localStorage.getItem("round") || "3";
+const sessionId = localStorage.getItem("testSessionId") || "";
+
+async function loadRanking(){
+
+    document.getElementById("title").innerText =
+        `第${round}回 ランキング`;
+
+    try{
+        const res = await fetch(
+            API_URL + "?action=getRanking&round=" + encodeURIComponent(round)
+        );
+
+        const data = await res.json();
+
+        document.getElementById("count").innerText =
+            `${data.count}人`;
+
+        document.getElementById("average").innerText =
+            `${data.average}点`;
+
+        if(!data.ranking || data.ranking.length === 0){
+            document.getElementById("rankingArea").innerHTML =
+                "<p>まだランキングデータがありません。</p>";
+
+            document.getElementById("myRank").innerText =
+                "未取得";
+            return;
+        }
+
+        const myData = data.ranking.find(item =>
+            String(item.sessionId) === String(sessionId)
+        );
+
+        if(myData){
+            document.getElementById("myRank").innerText =
+                `${myData.rank}位 / ${data.count}人中`;
+        }else{
+            document.getElementById("myRank").innerText =
+                "ランキング内で確認できませんでした";
+        }
+
+        let html = "";
+
+        data.ranking.forEach(item => {
+
+            const isMe =
+                String(item.sessionId) === String(sessionId);
+
+            let medal = "";
+
+            if(item.rank === 1){
+                medal = "🥇 ";
+            }else if(item.rank === 2){
+                medal = "🥈 ";
+            }else if(item.rank === 3){
+                medal = "🥉 ";
+            }
+
+            html += `
+                <div class="rankingItem ${isMe ? "myRankingItem" : ""}">
+                    <strong>${medal}${item.rank}位</strong>
+                    <span>${escapeHtml(item.nickname)}</span>
+                    <span>${item.score}点</span>
+                </div>
+            `;
+        });
+
+        document.getElementById("rankingArea").innerHTML = html;
+
+    }catch(error){
+        console.error(error);
+
+        document.getElementById("rankingArea").innerHTML =
+            "<p>ランキングの取得に失敗しました。</p>";
+
+        document.getElementById("myRank").innerText =
+            "取得失敗";
+    }
+}
+
+function escapeHtml(text){
+    return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+loadRanking();
+</script>
+</body>
+</html>

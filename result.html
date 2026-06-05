@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>結果</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+<div class="container">
+
+<h1>結果</h1>
+
+<div class="info">
+    <h2>受験情報</h2>
+    <p><strong>受験回</strong><br><span id="round"></span></p>
+    <p><strong>ニックネーム</strong><br><span id="nickname"></span></p>
+    <p><strong>ユーザーランク</strong><br><span id="rank"></span></p>
+</div>
+
+<div class="info">
+    <h2>受験結果</h2>
+    <p><strong>正答数</strong><br><span id="correct"></span></p>
+    <p><strong>得点</strong><br><span id="score"></span></p>
+    <p><strong>あなたの順位</strong><br><span id="myRank">取得中...</span></p>
+    <p id="saveStatus">結果を保存中...</p>
+</div>
+
+<button onclick="postToX()">
+    Xに投稿する
+</button>
+
+<button onclick="retakeSameRound()" style="background:#2b7de9;">
+    もう一度同じ回を受ける
+</button>
+
+<button onclick="location.href='index.html'" style="background:#777;">
+    最初に戻る
+</button>
+
+<button onclick="location.href='ranking.html'">
+    ランキングを確認する
+</button>
+
+<div class="info">
+    <h2>解答結果</h2>
+    <div id="detailArea"></div>
+</div>
+
+</div>
+
+<script>
+const API_URL =
+"https://script.google.com/macros/s/AKfycbyDLn3UccEHfvov-5wQ8X0IFgjZLPO7iHwniEB0zg0yH6ahLsRrZ1oTYduA8yF6dWIL/exec";
+
+const round = localStorage.getItem("round") || "";
+const nickname = localStorage.getItem("nickname") || "";
+const rank = localStorage.getItem("rank") || "";
+const sessionId = localStorage.getItem("testSessionId") || "";
+const questions = JSON.parse(localStorage.getItem("questions") || "[]");
+
+let correct = 0;
+const answers = {};
+
+function mark(num){
+    return ["", "①", "②", "③", "④"][Number(num)] || "未回答";
+}
+
+function escapeHtml(text){
+    return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+let detailHtml = "";
+
+questions.forEach((q, index) => {
+    const userAnswer = localStorage.getItem(`q${index + 1}`) || "";
+    const correctAnswer = String(q.answer);
+    const isCorrect = String(userAnswer) === correctAnswer;
+
+    answers[q.id || `q${index + 1}`] = userAnswer;
+
+    if(isCorrect){
+        correct++;
+    }
+
+    detailHtml += `
+        <div class="resultItem ${isCorrect ? "correctItem" : "wrongItem"}">
+            <h3>問${index + 1}　${isCorrect ? "○ 正解" : "× 不正解"}</h3>
+            <p>${escapeHtml(q.question)}</p>
+            <p>
+                あなたの回答：<strong>${mark(userAnswer)}</strong><br>
+                正解：<strong>${mark(correctAnswer)}</strong>
+            </p>
+        </div>
+    `;
+});
+
+const total = questions.length;
+const score = total === 0 ? 0 : Math.round((correct / total) * 100);
+
+document.getElementById("round").innerText =
+    round === "" ? "未取得" : `第${round}回`;
+
+document.getElementById("nickname").innerText =
+    nickname || "未入力";
+
+document.getElementById("rank").innerText =
+    rank || "未入力";
+
+document.getElementById("correct").innerText =
+    `${correct} / ${total} 問`;
+
+document.getElementById("score").innerText =
+    `${score} 点`;
+
+document.getElementById("detailArea").innerHTML =
+    detailHtml || "<p>解答データがありません。</p>";
+
+async function submitResult(){
+
+    const submittedKey = "submitted_" + sessionId;
+
+    if(sessionId && localStorage.getItem(submittedKey) === "true"){
+        document.getElementById("saveStatus").innerText =
+            "この受験結果はすでに保存済みです。";
+        loadMyRank();
+        return;
+    }
+
+    const data = {
+        mode: "submitResult",
+        nickname: nickname,
+        rank: rank,
+        round: round,
+        correct: correct,
+        total: total,
+        score: score,
+        answers: answers,
+        sessionId: sessionId
+    };
+
+    try{
+        await fetch(API_URL, {
+            method: "POST",
+            body: JSON.stringify(data)
+        });
+
+        if(sessionId){
+            localStorage.setItem(submittedKey, "true");
+        }
+
+        document.getElementById("saveStatus").innerText =
+            "結果を保存しました。";
+
+        loadMyRank();
+
+    }catch(error){
+        console.error(error);
+        document.getElementById("saveStatus").innerText =
+            "結果の保存に失敗しました。";
+    }
+}
+
+async function loadMyRank(){
+
+    try{
+        const res = await fetch(
+            API_URL + "?action=getRanking&round=" + encodeURIComponent(round)
+        );
+
+        const data = await res.json();
+
+        const myData = data.ranking.find(item =>
+            String(item.sessionId) === String(sessionId)
+        );
+
+        if(myData){
+            document.getElementById("myRank").innerText =
+                `${myData.rank}位 / ${data.count}人中`;
+        }else{
+            document.getElementById("myRank").innerText =
+                "ランキング内で確認できませんでした";
+        }
+
+    }catch(error){
+        console.error(error);
+        document.getElementById("myRank").innerText =
+            "順位の取得に失敗しました";
+    }
+}
+
+function postToX(){
+
+    const text =
+`第${round}回ぷよクエ共通テストを受験しました！
+
+結果：${score}点
+正答数：${correct}/${total}問
+
+第１回はここから受験できます！
+k-sandao.github.io/pyqetest/
+
+第２回はここから受験できます！
+k-sandao.github.io/pyqetest2/
+
+第３回以降はここから受験できます！
+
+
+#ぷよクエ共通テスト`;
+
+    const url =
+        "https://twitter.com/intent/tweet?text=" +
+        encodeURIComponent(text);
+
+    window.open(url, "_blank");
+}
+
+function retakeSameRound(){
+
+    if(!confirm("同じ回をもう一度受験しますか？")){
+        return;
+    }
+
+    localStorage.setItem("testSessionId", Date.now().toString());
+
+    for(let i = 1; i <= 300; i++){
+        localStorage.removeItem(`q${i}`);
+    }
+
+    localStorage.removeItem("questions");
+
+    window.location.href = "attention.html";
+}
+
+submitResult();
+</script>
+</body>
+</html>
