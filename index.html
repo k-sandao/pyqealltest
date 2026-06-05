@@ -34,6 +34,10 @@
         <option value="">読み込み中...</option>
     </select>
 
+    <button onclick="openRanking()" style="background:#2b7de9;">
+        選択中の回のランキングを確認する
+    </button>
+
     <label>ユーザーランク（任意）</label>
     <input
         type="number"
@@ -149,6 +153,21 @@ function startTest(){
     localStorage.removeItem("questions");
 
     window.location.href = "attention.html";
+}
+
+function openRanking(){
+
+    const round = document.getElementById("round").value;
+
+    if(round === ""){
+        document.getElementById("error").innerText =
+            "受験回を選択してください";
+        return;
+    }
+
+    localStorage.setItem("round", round);
+
+    window.location.href = "ranking.html?from=index";
 }
 
 loadRounds();
