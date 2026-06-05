@@ -22,7 +22,7 @@
 <div class="info">
     <h2>受験結果</h2>
     <p><strong>正答数</strong><br><span id="correct"></span></p>
-    <p><strong>得点</strong><br><span id="score"></span></p>
+    <p><strong>正答率</strong><br><span id="score"></span></p>
     <p><strong>あなたの順位</strong><br><span id="myRank">取得中...</span></p>
     <p id="saveStatus">結果を保存中...</p>
 </div>
@@ -117,7 +117,7 @@ document.getElementById("correct").innerText =
     `${correct} / ${total} 問`;
 
 document.getElementById("score").innerText =
-    `${score} 点`;
+    `${score} %`;
 
 document.getElementById("detailArea").innerHTML =
     detailHtml || "<p>解答データがありません。</p>";
@@ -200,7 +200,7 @@ function postToX(){
     const text =
 `第${round}回ぷよクエ共通テストを受験しました！
 
-結果：${score}点
+正答率：${score}%
 正答数：${correct}/${total}問
 
 第１回はここから受験できます！

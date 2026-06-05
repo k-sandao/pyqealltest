@@ -26,8 +26,8 @@
     <div id="questionArea"></div>
 
     <div style="margin-top:30px; display:flex; gap:10px;">
-        <button id="prevBtn" onclick="prevQuestion()">前へ</button>
-        <button id="nextBtn" onclick="nextQuestion()">次へ</button>
+        <button id="prevBtn" onclick="prevSection()">前へ</button>
+        <button id="nextBtn" onclick="nextSection()">次へ</button>
     </div>
 
 </div>
@@ -38,9 +38,19 @@ const API_URL =
 "https://script.google.com/macros/s/AKfycbyDLn3UccEHfvov-5wQ8X0IFgjZLPO7iHwniEB0zg0yH6ahLsRrZ1oTYduA8yF6dWIL/exec";
 
 let questions = [];
-let currentIndex = 0;
+let sections = [];
+let currentSectionIndex = 0;
 
-const categoryMap = {
+const categoryOrder = [
+    "初級",
+    "中級",
+    "上級",
+    "超上級",
+    "管理者問題①",
+    "管理者問題②"
+];
+
+const categoryTitleMap = {
     "初級": "大問1　初級",
     "中級": "大問2　中級",
     "上級": "大問3　上級",
@@ -59,7 +69,7 @@ async function loadQuestions(){
     try{
 
         const res = await fetch(
-            API_URL + "?action=getTest&round=" + round
+            API_URL + "?action=getTest&round=" + encodeURIComponent(round)
         );
 
         questions = await res.json();
@@ -83,7 +93,8 @@ async function loadQuestions(){
             return;
         }
 
-        showQuestion();
+        buildSections();
+        showSection();
 
     }catch(error){
 
@@ -97,119 +108,233 @@ async function loadQuestions(){
     }
 }
 
-function showQuestion(){
+function buildSections(){
 
-    const q = questions[currentIndex];
+    sections = [];
 
-    const category =
-        q.category || "未分類";
+    categoryOrder.forEach(category => {
+
+        const sectionQuestions =
+            questions.filter(q => q.category === category);
+
+        if(sectionQuestions.length > 0){
+
+            sections.push({
+                category: category,
+                title: categoryTitleMap[category],
+                questions: sectionQuestions
+            });
+
+        }
+
+    });
+
+    const otherQuestions =
+        questions.filter(q => !categoryOrder.includes(q.category));
+
+    if(otherQuestions.length > 0){
+
+        sections.push({
+            category: "未分類",
+            title: "未分類",
+            questions: otherQuestions
+        });
+
+    }
+}
+
+function showSection(){
+
+    const section = sections[currentSectionIndex];
 
     document.getElementById("sectionTitle").innerText =
-        categoryMap[category] || category;
+        section.title;
 
     document.getElementById("progressText").innerText =
-        `問 ${currentIndex + 1} / ${questions.length}`;
+        `大問 ${currentSectionIndex + 1} / ${sections.length}`;
 
     document.getElementById("progressFill").style.width =
-        `${((currentIndex + 1) / questions.length) * 100}%`;
+        `${((currentSectionIndex + 1) / sections.length) * 100}%`;
 
-    document.getElementById("questionArea").innerHTML =
-    `
-    <div class="info">
-        <p><strong>問題</strong></p>
+    let html = "";
 
-        <p>${escapeHtml(q.question)}</p>
+    section.questions.forEach(q => {
 
-        <label class="choiceLabel">
-            <input type="radio" name="answer" value="1">
-            ① ${escapeHtml(q.choice1)}
-        </label>
+        const globalIndex = questions.findIndex(item => item.id === q.id);
+        const questionNumber = globalIndex + 1;
 
-        <label class="choiceLabel">
-            <input type="radio" name="answer" value="2">
-            ② ${escapeHtml(q.choice2)}
-        </label>
+        html += `
+            <div class="info">
+                <p><strong>問${questionNumber}</strong></p>
 
-        <label class="choiceLabel">
-            <input type="radio" name="answer" value="3">
-            ③ ${escapeHtml(q.choice3)}
-        </label>
+                <p>${escapeHtml(q.question)}</p>
 
-        <label class="choiceLabel">
-            <input type="radio" name="answer" value="4">
-            ④ ${escapeHtml(q.choice4)}
-        </label>
-    </div>
-    `;
+                <label class="choiceLabel">
+                    <input
+                        type="radio"
+                        name="q${questionNumber}"
+                        value="1"
+                        onchange="saveAnswer(${questionNumber}, 1)"
+                    >
+                    ① ${escapeHtml(q.choice1)}
+                </label>
 
-    const savedAnswer =
-        localStorage.getItem(`q${currentIndex + 1}`);
+                <label class="choiceLabel">
+                    <input
+                        type="radio"
+                        name="q${questionNumber}"
+                        value="2"
+                        onchange="saveAnswer(${questionNumber}, 2)"
+                    >
+                    ② ${escapeHtml(q.choice2)}
+                </label>
 
-    if(savedAnswer){
+                <label class="choiceLabel">
+                    <input
+                        type="radio"
+                        name="q${questionNumber}"
+                        value="3"
+                        onchange="saveAnswer(${questionNumber}, 3)"
+                    >
+                    ③ ${escapeHtml(q.choice3)}
+                </label>
 
-        const radio = document.querySelector(
-            `input[name="answer"][value="${savedAnswer}"]`
-        );
+                <label class="choiceLabel">
+                    <input
+                        type="radio"
+                        name="q${questionNumber}"
+                        value="4"
+                        onchange="saveAnswer(${questionNumber}, 4)"
+                    >
+                    ④ ${escapeHtml(q.choice4)}
+                </label>
+            </div>
+        `;
 
-        if(radio){
-            radio.checked = true;
-        }
-    }
+    });
+
+    document.getElementById("questionArea").innerHTML = html;
+
+    restoreAnswers();
 
     document.getElementById("prevBtn").style.display =
-        currentIndex === 0 ? "none" : "block";
+        currentSectionIndex === 0 ? "none" : "block";
 
     document.getElementById("nextBtn").innerText =
-        currentIndex === questions.length - 1
+        currentSectionIndex === sections.length - 1
         ? "結果へ"
         : "次へ";
 
     window.scrollTo(0, 0);
 }
 
-function saveCurrentAnswer(){
-
-    const selected =
-        document.querySelector('input[name="answer"]:checked');
-
-    if(!selected){
-        return false;
-    }
+function saveAnswer(questionNumber, answer){
 
     localStorage.setItem(
-        `q${currentIndex + 1}`,
-        selected.value
+        `q${questionNumber}`,
+        String(answer)
     );
 
-    return true;
 }
 
-function nextQuestion(){
+function restoreAnswers(){
 
-    const saved = saveCurrentAnswer();
+    for(let i = 1; i <= questions.length; i++){
 
-    if(!saved){
-        alert("回答を選択してください");
-        return;
+        const savedAnswer =
+            localStorage.getItem(`q${i}`);
+
+        if(savedAnswer){
+
+            const radio = document.querySelector(
+                `input[name="q${i}"][value="${savedAnswer}"]`
+            );
+
+            if(radio){
+                radio.checked = true;
+            }
+        }
+    }
+}
+
+function nextSection(){
+
+    const unanswered = getUnansweredInCurrentSection();
+
+    if(unanswered.length > 0){
+
+        const go = confirm(
+            `この大問に未回答の問題が ${unanswered.length} 問あります。\n\nそのまま進みますか？`
+        );
+
+        if(!go){
+            return;
+        }
     }
 
-    if(currentIndex >= questions.length - 1){
+    if(currentSectionIndex >= sections.length - 1){
+
+        const allUnanswered = getAllUnanswered();
+
+        if(allUnanswered.length > 0){
+
+            const submit = confirm(
+                `未回答の問題が ${allUnanswered.length} 問あります。\n\nこのまま結果へ進みますか？`
+            );
+
+            if(!submit){
+                return;
+            }
+        }
+
         window.location.href = "result.html";
         return;
     }
 
-    currentIndex++;
-    showQuestion();
+    currentSectionIndex++;
+    showSection();
 }
 
-function prevQuestion(){
+function prevSection(){
 
-    saveCurrentAnswer();
-
-    if(currentIndex > 0){
-        currentIndex--;
-        showQuestion();
+    if(currentSectionIndex > 0){
+        currentSectionIndex--;
+        showSection();
     }
+}
+
+function getUnansweredInCurrentSection(){
+
+    const section = sections[currentSectionIndex];
+    const unanswered = [];
+
+    section.questions.forEach(q => {
+
+        const globalIndex = questions.findIndex(item => item.id === q.id);
+        const questionNumber = globalIndex + 1;
+
+        if(localStorage.getItem(`q${questionNumber}`) === null){
+            unanswered.push(questionNumber);
+        }
+
+    });
+
+    return unanswered;
+}
+
+function getAllUnanswered(){
+
+    const unanswered = [];
+
+    for(let i = 1; i <= questions.length; i++){
+
+        if(localStorage.getItem(`q${i}`) === null){
+            unanswered.push(i);
+        }
+
+    }
+
+    return unanswered;
 }
 
 function escapeHtml(text){
@@ -220,6 +345,7 @@ function escapeHtml(text){
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+
 }
 
 loadQuestions();
