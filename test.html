@@ -169,6 +169,15 @@ function showSection(){
 
                 <p>${escapeHtml(q.question)}</p>
 
+                <p style="
+                    font-size:0.9em;
+                    color:#666;
+                    margin-top:-5px;
+                    margin-bottom:15px;
+                ">
+                    出題者：${escapeHtml(q.name || "不明")}
+                </p>
+
                 <label class="choiceLabel">
                     <input
                         type="radio"
