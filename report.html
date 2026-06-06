@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>問題の不備報告</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>問題の不備報告</h1>
+
+    <div class="info">
+        <p>
+            不備があると思う問題にチェックを入れ、理由を入力してください。<br>
+            複数の問題をまとめて送信できます。<br>
+            すでに送信済みの問題は再送できません。
+        </p>
+    </div>
+
+    <div id="questionList"></div>
+
+    <button onclick="submitReports()">
+        選択した内容を送信する
+    </button>
+
+    <button onclick="location.href='result.html'" style="background:#777;">
+        結果画面に戻る
+    </button>
+
+    <div id="message" class="error"></div>
+
+</div>
+
+<script>
+
+const API_URL =
+"https://script.google.com/macros/s/AKfycbyDLn3UccEHfvov-5wQ8X0IFgjZLPO7iHwniEB0zg0yH6ahLsRrZ1oTYduA8yF6dWIL/exec";
+
+const round = localStorage.getItem("round") || "";
+const nickname = localStorage.getItem("nickname") || "";
+const sessionId = localStorage.getItem("testSessionId") || "";
+const questions = JSON.parse(localStorage.getItem("questions") || "[]");
+
+function mark(num){
+    return ["", "①", "②", "③", "④"][Number(num)] || "未回答";
+}
+
+function escapeHtml(text){
+    return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function getChoiceText(q, num){
+
+    if(String(num) === "1") return q.choice1 || "";
+    if(String(num) === "2") return q.choice2 || "";
+    if(String(num) === "3") return q.choice3 || "";
+    if(String(num) === "4") return q.choice4 || "";
+
+    return "";
+}
+
+function answerLabel(q, num){
+
+    const symbol = mark(num);
+    const text = getChoiceText(q, num);
+
+    if(symbol === "未回答"){
+        return "未回答";
+    }
+
+    return `${symbol} ${text}`;
+}
+
+function getReportKey(q, questionNumber){
+
+    const questionId = q.id || `q${questionNumber}`;
+
+    return `report_sent_${sessionId}_${questionId}`;
+}
+
+function isAlreadyReported(q, questionNumber){
+
+    return localStorage.getItem(getReportKey(q, questionNumber)) === "true";
+}
+
+function renderQuestions(){
+
+    if(questions.length === 0){
+
+        document.getElementById("questionList").innerHTML =
+            `<div class="info">問題データが見つかりません。結果画面から開き直してください。</div>`;
+
+        return;
+    }
+
+    let html = "";
+
+    questions.forEach((q, index) => {
+
+        const questionNumber = index + 1;
+        const userAnswer = localStorage.getItem(`q${questionNumber}`) || "";
+        const correctAnswer = String(q.answer || "");
+        const alreadyReported = isAlreadyReported(q, questionNumber);
+
+        html += `
+            <div class="info reportItem" id="reportItem_${questionNumber}">
+                <label style="display:flex; gap:10px; align-items:center;">
+                    <input
+                        type="checkbox"
+                        id="check_${questionNumber}"
+                        onchange="toggleReason(${questionNumber})"
+                        style="width:auto;"
+                        ${alreadyReported ? "disabled" : ""}
+                    >
+                    <strong>問${questionNumber}</strong>
+                    ${alreadyReported ? `<span style="color:#ff9800; font-weight:bold;">問い合わせ済み</span>` : ""}
+                </label>
+
+                <p>${escapeHtml(q.question)}</p>
+
+                <div style="
+                    font-size:0.9em;
+                    background:#f8fbff;
+                    border:1px solid #d7ebff;
+                    border-radius:8px;
+                    padding:10px;
+                    margin:10px 0;
+                    line-height:1.7;
+                ">
+                    <div>① ${escapeHtml(q.choice1)}</div>
+                    <div>② ${escapeHtml(q.choice2)}</div>
+                    <div>③ ${escapeHtml(q.choice3)}</div>
+                    <div>④ ${escapeHtml(q.choice4)}</div>
+                </div>
+
+                <p style="font-size:0.9em; color:#666;">
+                    あなたの回答：${escapeHtml(answerLabel(q, userAnswer))}<br>
+                    正解：${escapeHtml(answerLabel(q, correctAnswer))}
+                </p>
+
+                <textarea
+                    id="reason_${questionNumber}"
+                    placeholder="この問題にどのような不備があると思うか入力してください"
+                    style="display:none; width:100%; min-height:100px; margin-top:10px;"
+                    ${alreadyReported ? "disabled" : ""}
+                ></textarea>
+            </div>
+        `;
+
+    });
+
+    document.getElementById("questionList").innerHTML = html;
+}
+
+function toggleReason(questionNumber){
+
+    const checked =
+        document.getElementById(`check_${questionNumber}`).checked;
+
+    const reason =
+        document.getElementById(`reason_${questionNumber}`);
+
+    reason.style.display = checked ? "block" : "none";
+
+    if(!checked){
+        reason.value = "";
+    }
+}
+
+async function submitReports(){
+
+    const reports = [];
+    const sentTargets = [];
+
+    questions.forEach((q, index) => {
+
+        const questionNumber = index + 1;
+        const alreadyReported = isAlreadyReported(q, questionNumber);
+
+        if(alreadyReported){
+            return;
+        }
+
+        const checkedElement =
+            document.getElementById(`check_${questionNumber}`);
+
+        if(!checkedElement || !checkedElement.checked){
+            return;
+        }
+
+        const reason =
+            document.getElementById(`reason_${questionNumber}`).value.trim();
+
+        if(reason === ""){
+            reports.push({
+                error: true,
+                questionNumber: questionNumber
+            });
+            return;
+        }
+
+        const userAnswer =
+            localStorage.getItem(`q${questionNumber}`) || "";
+
+        reports.push({
+            questionNumber: questionNumber,
+            questionId: q.id || "",
+            questionText: q.question || "",
+            userAnswer: answerLabel(q, userAnswer),
+            correctAnswer: answerLabel(q, q.answer),
+            reportText: reason
+        });
+
+        sentTargets.push({
+            q: q,
+            questionNumber: questionNumber
+        });
+
+    });
+
+    const emptyReason = reports.find(r => r.error);
+
+    if(emptyReason){
+        document.getElementById("message").innerText =
+            `問${emptyReason.questionNumber} の理由を入力してください。`;
+        return;
+    }
+
+    if(reports.length === 0){
+        document.getElementById("message").innerText =
+            "問い合わせる問題を選択してください。";
+        return;
+    }
+
+    document.getElementById("message").innerText =
+        "送信中...";
+
+    const data = {
+        mode: "submitReport",
+        round: round,
+        nickname: nickname,
+        sessionId: sessionId,
+        reports: reports
+    };
+
+    try{
+
+        await fetch(API_URL, {
+            method: "POST",
+            body: JSON.stringify(data)
+        });
+
+        sentTargets.forEach(target => {
+            localStorage.setItem(
+                getReportKey(target.q, target.questionNumber),
+                "true"
+            );
+        });
+
+        document.getElementById("message").innerText =
+            "送信しました。ご報告ありがとうございます。";
+
+        renderQuestions();
+
+    }catch(error){
+
+        console.error(error);
+
+        document.getElementById("message").innerText =
+            "送信に失敗しました。時間をおいて再度お試しください。";
+    }
+}
+
+renderQuestions();
+
+</script>
+
+</body>
+</html>

@@ -145,3 +145,12 @@ textarea{
     font-size:16px;
     font-family:"Yu Gothic",sans-serif;
 }
+
+.reportButton{
+    background:#ff9800;
+    color:white;
+}
+
+.reportButton:hover{
+    background:#f57c00;
+}
